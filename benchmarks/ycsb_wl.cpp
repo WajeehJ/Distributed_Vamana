@@ -92,9 +92,21 @@ void * WorkloadYCSB::init_table_slice() {
         new_row->set_value(0, &primary_key);
         Catalog * schema = the_table->get_schema();
 
+        uint32_t emb_fid = schema->get_field_cnt() - 1;
+
         for (uint32_t fid = 1; fid < schema->get_field_cnt(); fid ++) {
-            char value[6] = "hello";
-            new_row->set_value(fid, value);
+            if(fid == emb_fid) {
+                static thread_local float emb[128];
+                for (int i = 0; i < 128; i++) {
+                    emb[i] = static_cast<float>(rand()) / RAND_MAX; // random 0..1
+                }
+
+                new_row->set_value(fid, emb); // writes raw bytes
+
+            } else {
+                char value[6] = "hello";
+                new_row->set_value(fid, value); 
+            }
         }
         uint64_t idx_key = primary_key;
 

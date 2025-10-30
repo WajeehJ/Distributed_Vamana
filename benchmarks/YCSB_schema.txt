@@ -11,6 +11,7 @@ TABLE=MAIN_TABLE
 	100,string,F7
 	100,string,F8
 	100,string,F9
+	512,blob,EMB
 
 INDEX=MAIN_INDEX
 MAIN_TABLE,0

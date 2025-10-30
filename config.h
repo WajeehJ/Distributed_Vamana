@@ -10,7 +10,7 @@
 // warmup time in seconds
 #define WARMUP 0
 // WORKLOAD can be YCSB or TPCC
-#define WORKLOAD TPCC
+#define WORKLOAD YCSB
 
 // Statistics
 // ==========

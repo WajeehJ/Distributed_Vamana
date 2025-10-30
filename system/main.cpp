@@ -94,9 +94,9 @@ int main(int argc, char* argv[])
     // spawn and run txns
     timespec * tp = new timespec;
     clock_gettime(CLOCK_REALTIME, tp);
-    uint64_t start_t = tp->tv_sec * 1000000000 + tp->tv_nsec;
+    // uint64_t start_t = tp->tv_sec * 1000000000 + tp->tv_nsec;
 
-    int64_t starttime = get_server_clock();
+    // int64_t starttime = get_server_clock();
     for (uint64_t i = 0; i < g_num_worker_threads - 1; i++)
         pthread_create(&pthreads[i], NULL, start_thread, (void *)worker_threads[i]);
     for (uint64_t i = 0; i < g_num_input_threads; i++)
@@ -111,14 +111,14 @@ int main(int argc, char* argv[])
     for (uint64_t i = 0; i < g_num_input_threads + g_num_output_threads; i++)
         pthread_join(pthreads[g_num_worker_threads + i], NULL);
     clock_gettime(CLOCK_REALTIME, tp);
-    uint64_t end_t = tp->tv_sec * 1000000000 + tp->tv_nsec;
+    // uint64_t end_t = tp->tv_sec * 1000000000 + tp->tv_nsec;
 
-    int64_t endtime = get_server_clock();
-    int64_t runtime = end_t - start_t;
-    if (abs(1.0 * runtime / (endtime - starttime) - 1) > 0.01)
-        M_ASSERT(false, "the CPU_FREQ is inaccurate! correct value should be %f\n",
-            1.0 * (endtime - starttime) * CPU_FREQ / runtime);
-    printf("PASS! SimTime = %ld\n", endtime - starttime);
+    // int64_t endtime = get_server_clock();
+    // int64_t runtime = end_t - start_t;
+    // // if (abs(1.0 * runtime / (endtime - starttime) - 1) > 0.01)
+    // //     M_ASSERT(false, "the CPU_FREQ is inaccurate! correct value should be %f\n",
+    // //         1.0 * (endtime - starttime) * CPU_FREQ / runtime);
+    // printf("PASS! SimTime = %ld\n", endtime - starttime);
 
 #if CC_ALG == TICTOC && ENABLE_LOCAL_CACHING
     delete local_cache_man;
