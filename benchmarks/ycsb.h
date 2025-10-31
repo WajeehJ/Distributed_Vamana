@@ -26,6 +26,8 @@ public :
     table_t *     get_table(uint32_t table_id) { return the_table; };
     void         table_to_indexes(uint32_t table_id, set<INDEX *> * indexes);
 
+    extern std::vector<uint64_t> g_all_keys;
+
     int         key_to_part(uint64_t key);
     uint32_t     key_to_node(uint64_t key, uint32_t table_id = 0);
     INDEX *     the_index;

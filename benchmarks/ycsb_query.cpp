@@ -4,10 +4,12 @@
 #include "ycsb.h"
 #include "table.h"
 #include "manager.h"
+#include <random>
 
 uint64_t QueryYCSB::the_n = 0;
 double QueryYCSB::denom = 0;
 double QueryYCSB::zeta_2_theta;
+
 
 void
 QueryYCSB::calculateDenom()
@@ -107,8 +109,7 @@ void QueryYCSB::gen_requests() {
         #endif
         uint64_t primary_key = row_id * g_num_server_nodes + node_id;
         M_ASSERT(row_id < table_size, "row_id=%ld\n", row_id);
-        bool readonly = (row_id == 0)? false :
-                        (int(row_id * g_readonly_perc) > int((row_id - 1) * g_readonly_perc));
+        bool readonly = true; 
         if (readonly)
             req->rtype = RD;
         else {
@@ -140,6 +141,10 @@ void QueryYCSB::gen_requests() {
 
         req->key = primary_key;
         req->value = 0;
+        std::mt19937 rng(seed ^ thread_id);
+        std::uniform_real_distribution<float> unif(0.0f, 1.0f);
+        for (int d = 0; d < 128; ++d)
+            req->qemb[d] = unif(rng);
         // remove duplicates
         bool exist = false;
         for (uint32_t i = 0; i < _request_cnt; i++)

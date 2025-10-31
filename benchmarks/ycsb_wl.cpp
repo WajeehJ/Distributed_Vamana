@@ -19,6 +19,7 @@
 #if WORKLOAD == YCSB
 
 int WorkloadYCSB::next_tid;
+std::vector<uint64_t> g_all_keys;
 
 RC WorkloadYCSB::init() {
     workload::init();
@@ -89,6 +90,7 @@ void * WorkloadYCSB::init_table_slice() {
         assert(rc == RCOK);
         // LSBs of a key indicate the node ID
         uint64_t primary_key = key * g_num_server_nodes + g_node_id;
+        g_all_keys.push_back(primary_key);
         new_row->set_value(0, &primary_key);
         Catalog * schema = the_table->get_schema();
 
@@ -98,7 +100,7 @@ void * WorkloadYCSB::init_table_slice() {
             if(fid == emb_fid) {
                 static thread_local float emb[128];
                 for (int i = 0; i < 128; i++) {
-                    emb[i] = static_cast<float>(rand()) / RAND_MAX; // random 0..1
+                    emb[i] = static_cast<float>(rand()) / RAND_MAX; 
                 }
 
                 new_row->set_value(fid, emb); // writes raw bytes
