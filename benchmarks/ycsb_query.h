@@ -11,7 +11,6 @@ public:
     access_t rtype;
     uint64_t key;
     uint32_t value;
-    float qemb[128]; // query vector (128 dims)
 };
 
 class QueryYCSB : public QueryBase {

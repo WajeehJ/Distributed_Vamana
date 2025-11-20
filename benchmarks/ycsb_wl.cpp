@@ -11,6 +11,8 @@
 #include "manager.h"
 #include "row_lock.h"
 #include "query.h"
+#include <cstdlib> // For rand() and srand()
+#include <ctime>   // For time()
 
 #include "ycsb.h"
 #include "ycsb_query.h"
@@ -19,7 +21,6 @@
 #if WORKLOAD == YCSB
 
 int WorkloadYCSB::next_tid;
-std::vector<uint64_t> g_all_keys;
 
 RC WorkloadYCSB::init() {
     workload::init();
@@ -90,28 +91,18 @@ void * WorkloadYCSB::init_table_slice() {
         assert(rc == RCOK);
         // LSBs of a key indicate the node ID
         uint64_t primary_key = key * g_num_server_nodes + g_node_id;
-        g_all_keys.push_back(primary_key);
         new_row->set_value(0, &primary_key);
         Catalog * schema = the_table->get_schema();
 
-        uint32_t emb_fid = schema->get_field_cnt() - 1;
-
-        for (uint32_t fid = 1; fid < schema->get_field_cnt(); fid ++) {
-            if(fid == emb_fid) {
-                static thread_local float emb[128];
-                for (int i = 0; i < 128; i++) {
-                    emb[i] = static_cast<float>(rand()) / RAND_MAX; 
-                }
-
-                new_row->set_value(fid, emb); // writes raw bytes
-
-            } else {
-                char value[6] = "hello";
-                new_row->set_value(fid, value); 
-            }
+        for (uint32_t fid = 1; fid < schema->get_field_cnt() - 1; fid ++) {
+            char value[6] = "hello";
+            new_row->set_value(fid, value);
         }
-        uint64_t idx_key = primary_key;
 
+        int64_t randomInRange = rand() % 100;  // correct type
+        new_row->set_value(schema->get_field_cnt() - 1, &randomInRange);
+
+        uint64_t idx_key = primary_key;
         rc = the_index->insert(idx_key, new_row);
 
         assert(idx_key == new_row->get_primary_key());

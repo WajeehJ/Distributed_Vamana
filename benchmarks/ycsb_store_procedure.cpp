@@ -8,9 +8,6 @@
 #include "catalog.h"
 #include "index_base.h"
 #include "index_hash.h"
-#include <queue>
-#include <vector>
-#include <utility>
 
 #if WORKLOAD == YCSB
 
@@ -23,16 +20,6 @@ YCSBStoreProcedure::~YCSBStoreProcedure()
 {
 }
 
-
-static inline float l2_sq(const float *a, const float *b, int dim=128) {
-    float s = 0.0f;
-    for (int i = 0; i < dim; ++i) {
-        float diff = a[i] - b[i];
-        s += diff * diff;
-    }
-    return s;
-}
-
 RC
 YCSBStoreProcedure::execute()
 {
@@ -43,7 +30,6 @@ YCSBStoreProcedure::execute()
     RequestYCSB * requests = query->get_requests();
     assert(_query);
 #if SINGLE_PART_ONLY
-    
     for ( ; _curr_query_id < query->get_request_count(); _curr_query_id ++) {
         RequestYCSB * req = &requests[ _curr_query_id ];
         uint64_t key = req->key;
@@ -58,20 +44,9 @@ YCSBStoreProcedure::execute()
     #endif
         char * data = _curr_data;
 
-        float embedding[128]; 
-
-        memcpy(embedding, &data[1008], sizeof(float) * 128);
-
         if (type == RD) {
-
-            const int K = 10;
-            using Pair = std::pair<float, uint64_t>; // (distance, pk)
-            struct Cmp { bool operator()(const Pair &a, const Pair &b) const { return a.first < b.first; } };
-            std::priority_queue<Pair, std::vector<Pair>, Cmp> heap;
-
-
-
-            
+            for (int fid = 0; fid < 10; fid ++)
+                __attribute__((unused)) uint64_t fval = *(uint64_t *)(&data[fid * 100]);
         } else {
             assert(type == WR);
             for (int fid = 1; fid < 10; fid ++)
@@ -146,8 +121,11 @@ YCSBStoreProcedure::execute()
             char * data = get_cc_manager()->get_data(req->key, 0);
 
             if (req->rtype == RD) {
-                for (int fid = 0; fid < 10; fid ++)
+                for (int fid = 0; fid < 10; fid ++) {
                     __attribute__((unused)) uint64_t fval = *(uint64_t *)(&data[fid * 100]);
+                    uint64_t number = *(uint64_t *)&data[1008];
+                    printf("number = %lu\n", number);
+                }
             } else {
                 assert(req->rtype == WR);
                 for (int fid = 1; fid < 10; fid ++)
