@@ -9,6 +9,29 @@ uint64_t QueryYCSB::the_n = 0;
 double QueryYCSB::denom = 0;
 double QueryYCSB::zeta_2_theta;
 
+#include <cmath>   // for std::sqrt
+
+float euclidean_distance(const float* a, const float* b, size_t dim) {
+    float sum = 0.0f;
+    for (size_t i = 0; i < dim; i++) {
+        float diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    return std::sqrt(sum);
+}
+
+void 
+QueryYCSB::add_to_list(float* a, int index) {
+    float dist = euclidean_distance(a, query_vector, 128);
+    if (heap.size() < 10) {
+        heap.emplace(dist, index);
+    } else if (dist < heap.top().first) {
+        heap.pop();
+        heap.emplace(dist, index);
+    }
+}
+
+
 void
 QueryYCSB::calculateDenom()
 {
@@ -55,8 +78,17 @@ QueryYCSB::QueryYCSB()
     : QueryBase()
 {
     _requests = NULL;
-    _requests = (RequestYCSB *) MALLOC(sizeof(RequestYCSB) * g_req_per_query);
+    _requests = (RequestYCSB *) MALLOC(sizeof(RequestYCSB) * g_synth_table_size * g_num_server_nodes);
+    
     gen_requests();
+    if(next_query_id < 100) {
+        std::cout << "current query" << next_query_id << endl; 
+
+        query_id = next_query_id.fetch_add(1);; 
+        query_vector = &query_dataset[query_id * 128];
+    } else {
+        query_vector = NULL; 
+    }
     _is_all_remote_readonly = false;
 }
 
@@ -82,86 +114,122 @@ QueryYCSB::~QueryYCSB()
     FREE(_requests, sizeof(RequestYCSB) * _request_cnt);
 }
 
+// void QueryYCSB::gen_requests() {
+//     _request_cnt = 0;
+//     uint64_t all_keys[g_req_per_query];
+//     bool has_remote = false;
+//     _is_all_remote_readonly = true;
+//     uint64_t table_size = g_synth_table_size;
+//     for (uint32_t tmp = 0; tmp < g_req_per_query; tmp ++) {
+//         RequestYCSB * req = &_requests[_request_cnt];
+
+//         bool remote = (g_num_nodes > 1)? (glob_manager->rand_double() < g_perc_remote) : false;
+//         uint32_t node_id;
+//         if (remote) {
+//             node_id = (g_node_id + glob_manager->rand_uint64(1, g_num_nodes - 1)) % g_num_nodes;
+//             has_remote = true;
+//         } else
+//             node_id = g_node_id;
+//         #if SINGLE_PART_ONLY
+//         uint64_t row_id = zipf(table_size / g_num_worker_threads - 1, g_zipf_theta);
+//         row_id = row_id * g_num_worker_threads + GET_THD_ID;
+//         assert(row_id < table_size);
+//         #else
+//         uint64_t row_id = zipf(table_size - 1, g_zipf_theta);
+//         #endif
+//         uint64_t primary_key = row_id * g_num_server_nodes + node_id;
+//         M_ASSERT(row_id < table_size, "row_id=%ld\n", row_id);
+//         bool readonly = (row_id == 0)? false :
+//                         (int(row_id * g_readonly_perc) > int((row_id - 1) * g_readonly_perc));
+//         if (readonly)
+//             req->rtype = RD;
+//         else {
+//             double r = glob_manager->rand_double();
+//             req->rtype = (r < g_read_perc)? RD : WR;
+//         }
+//         if (req->rtype == WR && remote)
+//             _is_all_remote_readonly = false;
+
+//         #if SOCIAL_NETWORK
+//         // if this switch is turned on, we mimic a social network
+//         // where writing events happen uniformly while reading events
+//         // follows the power law.
+//         // Here we re-sample the row_id from a uniform distribution.
+//         if(req->rtype == WR)
+//         {
+//             // it is possible that the new write destination (row_id) is a read-only item.
+//             row_id = (uint64_t) ((table_size - 1) * glob_manager->rand_double());
+//             for(;;)
+//             {
+//             bool readonly = (row_id == 0)? false :
+//                 (int(row_id * g_readonly_perc) > int((row_id - 1) * g_readonly_perc));
+//                 if(!readonly) break;
+//                 else { assert(false); row_id ++; } // avoid the read-only area
+//             }
+//             primary_key = row_id * g_num_server_nodes + node_id;
+//         }
+//         #endif
+
+//         req->key = primary_key;
+//         req->value = 0;
+//         // remove duplicates
+//         bool exist = false;
+//         for (uint32_t i = 0; i < _request_cnt; i++)
+//             if (all_keys[i] == req->key)
+//                 exist = true;
+//         if (!exist)
+//             all_keys[_request_cnt ++] = req->key;
+//     }
+//     if (!has_remote)
+//         _is_all_remote_readonly = false;
+//     // Sort the requests in key order.
+//     if (g_key_order) {
+//         for (int i = _request_cnt - 1; i > 0; i--)
+//             for (int j = 0; j < i; j ++)
+//                 if (_requests[j].key > _requests[j + 1].key) {
+//                     RequestYCSB tmp = _requests[j];
+//                     _requests[j] = _requests[j + 1];
+//                     _requests[j + 1] = tmp;
+//                 }
+//         for (UInt32 i = 0; i < _request_cnt - 1; i++)
+//             assert(_requests[i].key < _requests[i + 1].key);
+//     }
+// }
+
+std::vector<int32_t> QueryYCSB::get_knn_indices() {
+    std::vector<int32_t> knn_indices;
+    knn_indices.reserve(heap.size());
+    while (!heap.empty()) {
+        knn_indices.push_back(heap.top().second);  // store the index
+        heap.pop();
+    }
+
+    return knn_indices; 
+
+}
+
 void QueryYCSB::gen_requests() {
     _request_cnt = 0;
-    uint64_t all_keys[g_req_per_query];
-    bool has_remote = false;
-    _is_all_remote_readonly = true;
-    uint64_t table_size = g_synth_table_size;
-    for (uint32_t tmp = 0; tmp < g_req_per_query; tmp ++) {
-        RequestYCSB * req = &_requests[_request_cnt];
 
-        bool remote = (g_num_nodes > 1)? (glob_manager->rand_double() < g_perc_remote) : false;
-        uint32_t node_id;
-        if (remote) {
-            node_id = (g_node_id + glob_manager->rand_uint64(1, g_num_nodes - 1)) % g_num_nodes;
-            has_remote = true;
-        } else
-            node_id = g_node_id;
-        #if SINGLE_PART_ONLY
-        uint64_t row_id = zipf(table_size / g_num_worker_threads - 1, g_zipf_theta);
-        row_id = row_id * g_num_worker_threads + GET_THD_ID;
-        assert(row_id < table_size);
-        #else
-        uint64_t row_id = zipf(table_size - 1, g_zipf_theta);
-        #endif
-        uint64_t primary_key = row_id * g_num_server_nodes + node_id;
-        M_ASSERT(row_id < table_size, "row_id=%ld\n", row_id);
-        bool readonly = (row_id == 0)? false :
-                        (int(row_id * g_readonly_perc) > int((row_id - 1) * g_readonly_perc));
-        if (readonly)
-            req->rtype = RD;
-        else {
-            double r = glob_manager->rand_double();
-            req->rtype = (r < g_read_perc)? RD : WR;
-        }
-        if (req->rtype == WR && remote)
-            _is_all_remote_readonly = false;
+    uint64_t table_size = g_synth_table_size; // rows per node
+    uint64_t total_rows = table_size * g_num_server_nodes;
 
-        #if SOCIAL_NETWORK
-        // if this switch is turned on, we mimic a social network
-        // where writing events happen uniformly while reading events
-        // follows the power law.
-        // Here we re-sample the row_id from a uniform distribution.
-        if(req->rtype == WR)
-        {
-            // it is possible that the new write destination (row_id) is a read-only item.
-            row_id = (uint64_t) ((table_size - 1) * glob_manager->rand_double());
-            for(;;)
-            {
-            bool readonly = (row_id == 0)? false :
-                (int(row_id * g_readonly_perc) > int((row_id - 1) * g_readonly_perc));
-                if(!readonly) break;
-                else { assert(false); row_id ++; } // avoid the read-only area
-            }
-            primary_key = row_id * g_num_server_nodes + node_id;
-        }
-        #endif
+    // allocate one request per row in the entire distributed table
+    for (uint64_t global_id = 0; global_id < total_rows; global_id++) {
 
-        req->key = primary_key;
+        RequestYCSB *req = &_requests[_request_cnt];
+
+        // Set the key directly to the global primary key.
+        req->key = global_id;
+
+        // Simple rule: read everything (or pick WR if you want)
+        req->rtype = WR;
+
         req->value = 0;
-        // remove duplicates
-        bool exist = false;
-        for (uint32_t i = 0; i < _request_cnt; i++)
-            if (all_keys[i] == req->key)
-                exist = true;
-        if (!exist)
-            all_keys[_request_cnt ++] = req->key;
+
+        _request_cnt++;
     }
-    if (!has_remote)
-        _is_all_remote_readonly = false;
-    // Sort the requests in key order.
-    if (g_key_order) {
-        for (int i = _request_cnt - 1; i > 0; i--)
-            for (int j = 0; j < i; j ++)
-                if (_requests[j].key > _requests[j + 1].key) {
-                    RequestYCSB tmp = _requests[j];
-                    _requests[j] = _requests[j + 1];
-                    _requests[j + 1] = tmp;
-                }
-        for (UInt32 i = 0; i < _request_cnt - 1; i++)
-            assert(_requests[i].key < _requests[i + 1].key);
-    }
+
 }
 
 uint32_t

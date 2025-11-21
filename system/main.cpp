@@ -111,6 +111,11 @@ int main(int argc, char* argv[])
     for (uint64_t i = 0; i < g_num_input_threads + g_num_output_threads; i++)
         pthread_join(pthreads[g_num_worker_threads + i], NULL);
     clock_gettime(CLOCK_REALTIME, tp);
+
+    if(WORKLOAD == YCSB) {
+        WorkloadYCSB * ycsb =  (WorkloadYCSB * )m_wl;
+        ycsb->write_ivecs_file(); 
+    }
     // uint64_t end_t = tp->tv_sec * 1000000000 + tp->tv_nsec;
 
     // int64_t endtime = get_server_clock();

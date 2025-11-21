@@ -22,6 +22,67 @@
 
 int WorkloadYCSB::next_tid;
 
+std::vector<float> base_dataset;
+std::atomic<uint64_t> next_base_id{0};
+
+std::vector<float> query_dataset;
+std::atomic<uint64_t> next_query_id{0};
+
+std::vector<std::vector<int32_t>> knn_results(100);
+
+
+std::vector<float> read_fvecs(const std::string& filename, int& dimension) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return {};
+    }
+
+    // Read the dimension (first 4 bytes)
+    int d = 0;
+    file.read(reinterpret_cast<char*>(&d), sizeof(int));
+    if (file.fail()) {
+        std::cerr << "Error reading dimension." << std::endl;
+        return {};
+    }
+    dimension = d;
+    std::cout << "Vector dimension (d): " << dimension << std::endl;
+
+    // Calculate the number of vectors
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    size_t bytes_per_vector = sizeof(int) + dimension * sizeof(float);
+    size_t num_vectors = file_size / bytes_per_vector;
+    file.seekg(0, std::ios::beg); // Reset file pointer to the beginning
+
+    std::cout << "Number of vectors: " << num_vectors << std::endl;
+
+    std::vector<float> data;
+    data.reserve(num_vectors * dimension);
+
+    for (size_t i = 0; i < num_vectors; ++i) {
+        int current_d = 0;
+        file.read(reinterpret_cast<char*>(&current_d), sizeof(int));
+        if (file.fail() || current_d != dimension) {
+            std::cerr << "Error: Dimension mismatch or read error at vector " << i << std::endl;
+            break;
+        }
+
+        // Read the vector components
+        std::vector<float> vector_components(dimension);
+        file.read(reinterpret_cast<char*>(vector_components.data()), dimension * sizeof(float));
+        if (file.fail()) {
+            std::cerr << "Error reading vector components at vector " << i << std::endl;
+            break;
+        }
+        
+        // Append to the main data vector
+        data.insert(data.end(), vector_components.begin(), vector_components.end());
+    }
+
+    return data;
+}
+
 RC WorkloadYCSB::init() {
     workload::init();
     next_tid = 0;
@@ -33,6 +94,11 @@ RC WorkloadYCSB::init() {
         path = string(cpath);
         path += "/tests/apps/dbms/YCSB_schema.txt";
     }
+
+    int dimension = 128; 
+    base_dataset = read_fvecs("./benchmarks/siftsmall/siftsmall_base.fvecs", dimension);
+
+    query_dataset = read_fvecs("./benchmarks/siftsmall/siftsmall_query.fvecs", dimension); 
     init_schema( path );
     init_table_parallel();
     return RCOK;
@@ -94,13 +160,20 @@ void * WorkloadYCSB::init_table_slice() {
         new_row->set_value(0, &primary_key);
         Catalog * schema = the_table->get_schema();
 
-        for (uint32_t fid = 1; fid < schema->get_field_cnt() - 1; fid ++) {
+        for (uint32_t fid = 1; fid < schema->get_field_cnt(); fid ++) {
             char value[6] = "hello";
             new_row->set_value(fid, value);
         }
 
-        int64_t randomInRange = rand() % 100;  // correct type
-        new_row->set_value(schema->get_field_cnt() - 1, &randomInRange);
+
+        float* vec128 = &base_dataset[next_base_id * 128];
+        next_base_id.fetch_add(1);
+
+        // int64_t randomInRange = rand() % 100;  // correct type
+        // new_row->set_value(schema->get_field_cnt() - 1, &randomInRange);
+
+        new_row->set_value(schema->get_field_cnt() - 1, vec128);
+
 
         uint64_t idx_key = primary_key;
         rc = the_index->insert(idx_key, new_row);
@@ -155,5 +228,21 @@ WorkloadYCSB::get_primary_key(row_t * row)
     row->get_value(0, &key);
     return key;
 }
+
+void
+WorkloadYCSB::write_ivecs_file()
+{
+    std::ofstream fout("knn_out.ivecs", std::ios::binary);
+    for (const auto& indices : knn_results) {
+        int32_t K_int = static_cast<int32_t>(indices.size());
+        fout.write(reinterpret_cast<char*>(&K_int), sizeof(int32_t));
+        for (int idx : indices) {
+            int32_t idx32 = static_cast<int32_t>(idx);
+            fout.write(reinterpret_cast<char*>(&idx32), sizeof(int32_t));
+        }
+    }
+    fout.close();
+}
+
 
 #endif

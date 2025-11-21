@@ -9,6 +9,14 @@ class QueryYCSB;
 class SubQueryYCSB;
 class StoreProcedure;
 
+extern std::vector<float> base_dataset;
+extern std::atomic<uint64_t> next_base_id;
+
+extern std::vector<float> query_dataset;
+extern std::atomic<uint64_t> next_query_id;
+
+extern std::vector<std::vector<int32_t>> knn_results;
+
 class WorkloadYCSB : public workload {
 public :
     RC init();
@@ -17,6 +25,7 @@ public :
     QueryBase * gen_query();
     QueryBase * clone_query(QueryBase * query);
     QueryBase * deserialize_subquery(char * data);
+    void write_ivecs_file(); 
 
     uint64_t     get_primary_key(row_t * row);
     uint64_t     get_index_key(row_t * row, uint32_t index_id)

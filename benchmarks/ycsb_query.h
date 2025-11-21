@@ -3,6 +3,7 @@
 #include "global.h"
 #include "helper.h"
 #include "query.h"
+#include <queue>
 
 class workload;
 
@@ -26,12 +27,19 @@ public:
 
     uint64_t get_request_count()     { return _request_cnt; }
     RequestYCSB * get_requests()    { return _requests; }
+    float * get_query_vector() { return query_vector; }
+    int get_query_id() { return query_id; }
+    std::vector<int32_t> get_knn_indices(); 
+    void add_to_list(float * vector, int index); 
     void gen_requests();
     bool is_all_remote_readonly() { return _is_all_remote_readonly; }
 
 private:
     uint32_t _request_cnt;
+    int query_id; 
     RequestYCSB * _requests;
+    float* query_vector;
+    std::priority_queue<std::pair<float,int>> heap;  // max-heap
 
     // for Zipfian distribution
     uint64_t zipf(uint64_t n, double theta);

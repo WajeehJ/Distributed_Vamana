@@ -8,6 +8,7 @@
 #include "catalog.h"
 #include "index_base.h"
 #include "index_hash.h"
+#include <cmath>
 
 #if WORKLOAD == YCSB
 
@@ -28,6 +29,9 @@ YCSBStoreProcedure::execute()
     INDEX * index = wl->the_index;
     QueryYCSB * query = (QueryYCSB *) _query;
     RequestYCSB * requests = query->get_requests();
+    if(query->get_query_vector() == NULL) {
+        return RCOK; 
+    }
     assert(_query);
 #if SINGLE_PART_ONLY
     for ( ; _curr_query_id < query->get_request_count(); _curr_query_id ++) {
@@ -43,6 +47,7 @@ YCSBStoreProcedure::execute()
         GET_DATA( key, index, type);
     #endif
         char * data = _curr_data;
+
 
         if (type == RD) {
             for (int fid = 0; fid < 10; fid ++)
@@ -120,18 +125,27 @@ YCSBStoreProcedure::execute()
             RequestYCSB * req = &requests[i];
             char * data = get_cc_manager()->get_data(req->key, 0);
 
+            // if(data != NULL) {
+            //     uint64_t number = *(uint64_t *)&data[1008];
+            //     printf("number = %lu\n", number);
+            // }
             if (req->rtype == RD) {
                 for (int fid = 0; fid < 10; fid ++) {
                     __attribute__((unused)) uint64_t fval = *(uint64_t *)(&data[fid * 100]);
-                    uint64_t number = *(uint64_t *)&data[1008];
-                    printf("number = %lu\n", number);
                 }
             } else {
                 assert(req->rtype == WR);
+                constexpr size_t key_size = 8;
+                constexpr size_t field_size = 100;
+                constexpr size_t num_fields = 10;
+                size_t vector_offset = key_size + num_fields * field_size;
+                float* vec_ptr = (float*) &data[vector_offset];
+                query->add_to_list(vec_ptr, i); 
                 for (int fid = 1; fid < 10; fid ++)
                     *(uint64_t *)(&data[fid * 100]) = _txn->get_txn_id();
             }
         }
+        knn_results[query->get_query_id()] = query->get_knn_indices(); 
     }
 #endif
     return RCOK;

@@ -2,7 +2,7 @@
 
 #define DISTRIBUTED_ENABLE            true
 // number of server threads
-#define NUM_SERVER_THREADS            8
+#define NUM_SERVER_THREADS            1
 
 ////////////////////////////////////////////////////////////////////////
 // For distributed DBMS, the following parameters are for a single node.
@@ -113,14 +113,14 @@
 ////////////////////////////////////////////////////////////////////////
 // max number of rows touched per transaction
 #define WARMUP_TIME                    0 // in seconds
-#define RUN_TIME                    1 // in seconds
+#define RUN_TIME                    60 // in seconds
 #define MAX_TUPLE_SIZE                1024 // in bytes
 #define INIT_PARALLELISM            40
 ///////////////////////////////
 // YCSB
 ///////////////////////////////
 // Number of tuples per node
-#define SYNTH_TABLE_SIZE             (1024 * 10)
+#define SYNTH_TABLE_SIZE             (10000)
 #define ZIPF_THETA                     0.9
 #define READ_PERC                     0.9
 #define PERC_READONLY_DATA            0

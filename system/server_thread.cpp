@@ -45,6 +45,7 @@ ServerThread::ServerThread(uint64_t thd_id)
 RC ServerThread::run() {
     glob_manager->init_rand( get_thd_id() );
     glob_manager->set_thd_id( get_thd_id() );
+    std::cout << "run time" << g_run_time << endl; 
     assert( glob_manager->get_thd_id() == get_thd_id() );
 
     pthread_barrier_wait( &global_barrier );
